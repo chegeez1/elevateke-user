@@ -22,16 +22,22 @@ import { toast } from "sonner";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, AlertTriangle, Clock, RefreshCw, XCircle } from "lucide-react";
+import { ExternalLink, AlertTriangle, Clock, RefreshCw, XCircle, TrendingUp, CalendarDays, Zap } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 type ApiErrorData = { error: string; expired?: boolean; retryable?: boolean };
 type VerifyError = ErrorType<ApiErrorData>;
 
 type DepositItem = {
   id: number;
+  planId: number;
   planName: string;
   amount: number;
+  bonusAmount: number;
+  dailyEarning: number;
   status: string;
+  startsAt: string | null;
+  endsAt: string | null;
   createdAt: string;
   expiresAt?: string | null;
 };
@@ -70,6 +76,66 @@ const statusBadge = (status: string) => {
     default: return <Badge variant="outline">{status}</Badge>;
   }
 };
+
+function CurrentPlanCard({ deposit }: { deposit: DepositItem }) {
+  const start = deposit.startsAt ? new Date(deposit.startsAt).getTime() : new Date(deposit.createdAt).getTime();
+  const end = deposit.endsAt ? new Date(deposit.endsAt).getTime() : null;
+  const now = Date.now();
+
+  const totalDays = end ? Math.round((end - start) / 86400000) : null;
+  const elapsedDays = Math.max(0, Math.floor((now - start) / 86400000));
+  const remainingDays = end ? Math.max(0, Math.ceil((end - now) / 86400000)) : null;
+  const progressPct = (totalDays && totalDays > 0) ? Math.min(100, (elapsedDays / totalDays) * 100) : 0;
+  const dailyRatePct = deposit.amount > 0 ? ((deposit.dailyEarning / deposit.amount) * 100).toFixed(1) : "0.0";
+
+  return (
+    <Card className="border-2 border-green-500 bg-gradient-to-r from-green-50 to-emerald-50 relative overflow-hidden">
+      <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg flex items-center gap-1">
+        <Zap size={11} /> Active Plan
+      </div>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-xl text-green-800">{deposit.planName}</CardTitle>
+        <p className="text-sm text-green-600 font-medium">KSH {formatNumber(deposit.amount)} invested</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white/70 rounded-lg p-3 text-center">
+            <TrendingUp size={16} className="text-green-600 mx-auto mb-1" />
+            <div className="text-xs text-gray-500">Daily Earn</div>
+            <div className="font-bold text-green-700">KSH {formatNumber(deposit.dailyEarning)}</div>
+            <div className="text-xs text-gray-400">{dailyRatePct}% / day</div>
+          </div>
+          <div className="bg-white/70 rounded-lg p-3 text-center">
+            <CalendarDays size={16} className="text-green-600 mx-auto mb-1" />
+            <div className="text-xs text-gray-500">Days Left</div>
+            <div className="font-bold text-green-700">{remainingDays ?? "—"}</div>
+            <div className="text-xs text-gray-400">of {totalDays ?? "?"} total</div>
+          </div>
+          <div className="bg-white/70 rounded-lg p-3 text-center">
+            <Zap size={16} className="text-amber-500 mx-auto mb-1" />
+            <div className="text-xs text-gray-500">Signup Bonus</div>
+            <div className="font-bold text-amber-600">KSH {formatNumber(deposit.bonusAmount)}</div>
+            <div className="text-xs text-gray-400">credited</div>
+          </div>
+        </div>
+
+        {totalDays && totalDays > 0 && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>Day {elapsedDays} of {totalDays}</span>
+              <span>{Math.round(progressPct)}% complete</span>
+            </div>
+            <Progress value={progressPct} className="h-2 bg-green-100 [&>div]:bg-green-500" />
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>{deposit.startsAt ? new Date(deposit.startsAt).toLocaleDateString() : "—"}</span>
+              <span>{deposit.endsAt ? new Date(deposit.endsAt).toLocaleDateString() : "—"}</span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Deposit() {
   const { data: plans, isLoading: loadingPlans } = useGetPlans();
@@ -152,6 +218,8 @@ export default function Deposit() {
     });
   };
 
+  const activePlan = deposits?.find(d => d.status === "active") ?? null;
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -159,6 +227,8 @@ export default function Deposit() {
           <h1 className="text-3xl font-bold text-gray-900">Deposit</h1>
           <p className="text-gray-500">Invest in a plan to earn daily returns.</p>
         </div>
+
+        {activePlan && <CurrentPlanCard deposit={activePlan} />}
 
         <Tabs defaultValue="plans">
           <TabsList className="mb-4">
