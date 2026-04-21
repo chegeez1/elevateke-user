@@ -12,7 +12,8 @@ import { CreateDepositBody, VerifyDepositBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-const EXPIRE_AFTER_MINUTES = Math.max(1, Number(process.env.DEPOSIT_PENDING_TTL_MINUTES ?? "30"));
+const _ttlEnv = Number(process.env.DEPOSIT_PENDING_TTL_MINUTES);
+const EXPIRE_AFTER_MINUTES = Number.isFinite(_ttlEnv) && _ttlEnv > 0 ? _ttlEnv : 30;
 const EXPIRE_AFTER_MS = EXPIRE_AFTER_MINUTES * 60 * 1000;
 
 export async function expireStalePendingDeposits(userId?: number) {
@@ -203,8 +204,34 @@ router.post(
       return;
     }
     if (deposit.status === "cancelled") {
-      res.status(400).json({ error: "This deposit was cancelled. Please start a new deposit." });
-      return;
+      // Reconciliation: if user already paid before cancelling, auto-reactivate
+      if (deposit.paystackRef) {
+        const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
+        if (PAYSTACK_SECRET) {
+          try {
+            const checkRes = await fetch(
+              `https://api.paystack.co/transaction/verify/${deposit.paystackRef}`,
+              { headers: { Authorization: `Bearer ${PAYSTACK_SECRET}` } },
+            );
+            const checkData = (await checkRes.json()) as { data?: { status?: string } };
+            if (checkData?.data?.status === "success") {
+              // Payment was made — fall through to activate below
+              req.log.info({ depositId: deposit.id }, "Reconciling cancelled deposit — payment found");
+              // Patch status back to pending so the activation block below runs
+              await db.update(depositsTable)
+                .set({ status: "pending" })
+                .where(eq(depositsTable.id, deposit.id));
+              deposit.status = "pending";
+            }
+          } catch (e) {
+            req.log.warn({ err: e }, "Paystack check during cancel reconciliation failed");
+          }
+        }
+      }
+      if (deposit.status === "cancelled") {
+        res.status(400).json({ error: "This deposit was cancelled. Please start a new deposit." });
+        return;
+      }
     }
 
     const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
