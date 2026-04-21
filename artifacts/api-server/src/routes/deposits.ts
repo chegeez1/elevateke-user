@@ -4,11 +4,13 @@ import {
   depositsTable,
   depositPlansTable,
   usersTable,
+  inboxMessagesTable,
 } from "@workspace/db";
 import { eq, and, desc, lt } from "drizzle-orm";
 import { authenticate } from "../middlewares/auth";
 import type { JwtPayload } from "../middlewares/auth";
 import { CreateDepositBody, VerifyDepositBody } from "@workspace/api-zod";
+import { sendDepositConfirmationEmail } from "../mailer";
 
 const router: IRouter = Router();
 
@@ -307,7 +309,28 @@ router.post(
       })
       .where(eq(usersTable.id, userId));
 
-    res.json(formatDeposit(updated, plan?.name ?? "Unknown"));
+    const planName = plan?.name ?? "Unknown";
+    const depositAmount = Number(deposit.amount).toLocaleString("en-KE");
+    const dailyEarning = Number(deposit.dailyEarning).toLocaleString("en-KE");
+    const confirmationMessage =
+      `Your deposit of KSH ${depositAmount} under the ${planName} plan has been activated successfully. ` +
+      `You will earn KSH ${dailyEarning} per day. ` +
+      `Reference: ${deposit.paystackRef}. ` +
+      `Contact support with this reference if you have any questions.`;
+
+    db.insert(inboxMessagesTable)
+      .values({ userId, title: "Deposit Confirmed", content: confirmationMessage })
+      .catch((err: unknown) => req.log.error({ err }, "Failed to send deposit inbox notification"));
+
+    if (user) {
+      sendDepositConfirmationEmail({
+        to: user.email,
+        name: user.name,
+        message: confirmationMessage,
+      }).catch((err: unknown) => req.log.error({ err }, "Failed to send deposit confirmation email"));
+    }
+
+    res.json(formatDeposit(updated, planName));
   },
 );
 
