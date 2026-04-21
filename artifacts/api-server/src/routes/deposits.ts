@@ -80,6 +80,49 @@ router.post("/deposits", authenticate, async (req, res): Promise<void> => {
   const dailyEarning = amount * Number(plan.dailyRate);
   const reference = `EKE-${Date.now()}-${userId}`;
 
+  const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
+  if (!PAYSTACK_SECRET) {
+    res.status(503).json({ error: "Payment service not configured. Please contact support." });
+    return;
+  }
+
+  let paystackAuthUrl = "";
+  try {
+    const paystackRes = await fetch(
+      "https://api.paystack.co/transaction/initialize",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${PAYSTACK_SECRET}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: `user${userId}@elevateke.com`,
+          amount: amount * 100,
+          reference,
+          currency: "KES",
+          phone,
+          channels: ["mobile_money"],
+        }),
+      },
+    );
+    const paystackData = (await paystackRes.json()) as {
+      status?: boolean;
+      data?: { authorization_url?: string };
+      message?: string;
+    };
+    if (!paystackData.status || !paystackData.data?.authorization_url) {
+      req.log.error({ paystackData }, "Paystack transaction initialization failed");
+      res.status(502).json({ error: paystackData.message || "Failed to initiate payment. Please try again." });
+      return;
+    }
+    paystackAuthUrl = paystackData.data.authorization_url;
+  } catch (err) {
+    req.log.error({ err }, "Paystack call failed");
+    res.status(502).json({ error: "Payment service unavailable. Please try again later." });
+    return;
+  }
+
   const [deposit] = await db
     .insert(depositsTable)
     .values({
@@ -94,42 +137,9 @@ router.post("/deposits", authenticate, async (req, res): Promise<void> => {
     })
     .returning();
 
-  const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
-  let paystackAuthUrl = "";
-
-  if (PAYSTACK_SECRET) {
-    try {
-      const paystackRes = await fetch(
-        "https://api.paystack.co/transaction/initialize",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${PAYSTACK_SECRET}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: `user${userId}@elevateke.com`,
-            amount: amount * 100,
-            reference,
-            currency: "KES",
-            phone,
-            channels: ["mobile_money"],
-          }),
-        },
-      );
-      const paystackData = (await paystackRes.json()) as {
-        data?: { authorization_url?: string };
-      };
-      paystackAuthUrl = paystackData?.data?.authorization_url ?? "";
-    } catch {
-      req.log.warn("Paystack call failed");
-    }
-  }
-
   res.status(201).json({
     deposit: formatDeposit(deposit, plan.name),
-    paystackAuthUrl:
-      paystackAuthUrl || `https://checkout.paystack.com/demo-${reference}`,
+    paystackAuthUrl,
     reference,
   });
 });
@@ -170,27 +180,29 @@ router.post(
     }
 
     const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
-    let verified = false;
+    if (!PAYSTACK_SECRET) {
+      res.status(503).json({ error: "Payment service not configured. Please contact support." });
+      return;
+    }
 
-    if (PAYSTACK_SECRET) {
-      try {
-        const verRes = await fetch(
-          `https://api.paystack.co/transaction/verify/${reference}`,
-          {
-            headers: { Authorization: `Bearer ${PAYSTACK_SECRET}` },
-          },
-        );
-        const verData = (await verRes.json()) as { data?: { status?: string } };
-        verified = verData?.data?.status === "success";
-      } catch {
-        req.log.warn("Paystack verify failed");
-      }
-    } else {
-      verified = true;
+    let verified = false;
+    try {
+      const verRes = await fetch(
+        `https://api.paystack.co/transaction/verify/${reference}`,
+        {
+          headers: { Authorization: `Bearer ${PAYSTACK_SECRET}` },
+        },
+      );
+      const verData = (await verRes.json()) as { data?: { status?: string } };
+      verified = verData?.data?.status === "success";
+    } catch (err) {
+      req.log.error({ err }, "Paystack verify call failed");
+      res.status(502).json({ error: "Payment service unavailable. Please try again later." });
+      return;
     }
 
     if (!verified) {
-      res.status(400).json({ error: "Payment not verified" });
+      res.status(400).json({ error: "Payment not yet received. Please complete the M-Pesa prompt on your phone and try again." });
       return;
     }
 
