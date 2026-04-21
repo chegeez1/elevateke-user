@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
-import { useGetEarnings, useClaimDailyEarnings, useReinvestEarnings, useGetDashboardSummary } from "@workspace/api-client-react";
+import { useGetEarnings, useClaimDailyEarnings, useReinvestEarnings, useGetDashboardSummary, type ErrorType, type ErrorResponse } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
@@ -76,8 +76,8 @@ export default function Earnings() {
   const [reinvestOpen, setReinvestOpen] = useState(false);
   const [reinvestAmount, setReinvestAmount] = useState("");
 
-  const canClaim = (summary as any)?.canClaimEarnings === true;
-  const dailyTotal = (summary as any)?.dailyEarningsTotal ?? 0;
+  const canClaim = summary?.canClaimEarnings === true;
+  const dailyTotal = summary?.dailyEarningsTotal ?? 0;
   const nextEarningAt: string | null = summary?.nextEarningAt ?? null;
   const hasActiveDeposit = (summary?.activeDeposits ?? 0) > 0;
 
@@ -88,8 +88,8 @@ export default function Earnings() {
         queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
       },
-      onError: (err) => {
-        toast.error("Failed to claim", { description: (err as any).data?.error ?? "No earnings available." });
+      onError: (err: ErrorType<ErrorResponse>) => {
+        toast.error("Failed to claim", { description: err.data?.error ?? "No earnings available." });
       }
     });
   };
@@ -104,8 +104,8 @@ export default function Earnings() {
         queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
       },
-      onError: (err) => {
-        toast.error("Reinvestment failed", { description: (err as any).data?.error ?? "Unknown error" });
+      onError: () => {
+        toast.error("Reinvestment failed", { description: "Please check your balance and try again." });
       }
     });
   };

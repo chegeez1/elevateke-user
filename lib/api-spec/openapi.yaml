@@ -1250,9 +1250,13 @@ components:
           type: integer
         loginBonusAvailable:
           type: boolean
+        canClaimEarnings:
+          type: boolean
+        dailyEarningsTotal:
+          type: number
         activeTrade:
           $ref: "#/components/schemas/Trade"
-      required: [balance, totalEarned, totalDeposited, pendingWithdrawals, activeDeposits, todayEarned, vipLevel, unreadMessages, loginBonusAvailable]
+      required: [balance, totalEarned, totalDeposited, pendingWithdrawals, activeDeposits, todayEarned, vipLevel, unreadMessages, loginBonusAvailable, canClaimEarnings, dailyEarningsTotal]
 
     DepositPlan:
       type: object

@@ -203,6 +203,8 @@ export const GetDashboardSummaryResponse = zod.object({
   vipLevel: zod.string(),
   unreadMessages: zod.number(),
   loginBonusAvailable: zod.boolean(),
+  canClaimEarnings: zod.boolean(),
+  dailyEarningsTotal: zod.number(),
   activeTrade: zod
     .object({
       id: zod.number(),

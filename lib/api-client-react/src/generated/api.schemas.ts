@@ -141,6 +141,8 @@ export interface DashboardSummary {
   vipLevel: string;
   unreadMessages: number;
   loginBonusAvailable: boolean;
+  canClaimEarnings: boolean;
+  dailyEarningsTotal: number;
   activeTrade?: Trade;
 }
 
