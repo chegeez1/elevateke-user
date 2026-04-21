@@ -13,7 +13,7 @@ import { History, Coins, ArrowRightLeft, Clock, CheckCircle2, TrendingUp, Wallet
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
-function MidnightCountdown({ nextEarningAt }: { nextEarningAt: string }) {
+function useMidnightCountdown(nextEarningAt: string) {
   const [label, setLabel] = useState("");
   const [pct, setPct] = useState(0);
 
@@ -39,7 +39,7 @@ function MidnightCountdown({ nextEarningAt }: { nextEarningAt: string }) {
 }
 
 function CountdownCard({ nextEarningAt, dailyRate }: { nextEarningAt: string; dailyRate: number }) {
-  const { label, pct } = MidnightCountdown({ nextEarningAt });
+  const { label, pct } = useMidnightCountdown(nextEarningAt);
 
   return (
     <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50">
@@ -68,7 +68,7 @@ function CountdownCard({ nextEarningAt, dailyRate }: { nextEarningAt: string; da
 
 export default function Earnings() {
   const { data: earnings, isLoading } = useGetEarnings();
-  const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary();
+  const { data: summary, isLoading: summaryLoading, isError: summaryError } = useGetDashboardSummary();
   const claimMut = useClaimDailyEarnings();
   const reinvestMut = useReinvestEarnings();
   const queryClient = useQueryClient();
@@ -167,6 +167,13 @@ export default function Earnings() {
           {/* Claim Card */}
           {summaryLoading ? (
             <Card><CardContent className="p-6 text-center text-gray-400">Loading...</CardContent></Card>
+          ) : summaryError ? (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="p-6 text-center text-red-600">
+                <p className="font-medium mb-1">Unable to load earnings status</p>
+                <p className="text-sm">Please refresh the page and try again.</p>
+              </CardContent>
+            </Card>
           ) : !hasActiveDeposit ? (
             <Card className="border-dashed border-2">
               <CardContent className="p-6 text-center text-gray-500">
