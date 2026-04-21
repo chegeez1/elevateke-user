@@ -56,6 +56,60 @@ router.post(
       return;
     }
 
+    // ── charge.failed ──────────────────────────────────────────────────────────
+    if (event.event === "charge.failed") {
+      const reference = event.data?.reference;
+      if (!reference) {
+        req.log.warn({ event }, "charge.failed event missing reference");
+        res.status(200).json({ received: true });
+        return;
+      }
+
+      req.log.info({ reference }, "Processing charge.failed webhook");
+
+      const [failedDeposit] = await db
+        .select()
+        .from(depositsTable)
+        .where(and(
+          eq(depositsTable.paystackRef, reference),
+          eq(depositsTable.status, "pending"),
+        ));
+
+      if (!failedDeposit) {
+        req.log.info({ reference }, "No pending deposit found for charge.failed — ignoring");
+        res.status(200).json({ received: true });
+        return;
+      }
+
+      await db
+        .update(depositsTable)
+        .set({ status: "failed" })
+        .where(and(
+          eq(depositsTable.id, failedDeposit.id),
+          eq(depositsTable.status, "pending"),
+        ));
+
+      const depositAmtFmt = Number(failedDeposit.amount).toLocaleString("en-KE");
+      db.insert(inboxMessagesTable)
+        .values({
+          userId: failedDeposit.userId,
+          title: "Payment Failed",
+          content:
+            `Your M-Pesa payment of KSH ${depositAmtFmt} could not be processed ` +
+            `(Ref: ${reference}). This can happen if the STK Push was declined, timed out, ` +
+            `or the PIN was entered incorrectly. Please go to the Deposit page and try again. ` +
+            `If funds were deducted from your M-Pesa, contact support with the reference above.`,
+        })
+        .catch((err: unknown) =>
+          req.log.error({ err }, "Webhook: failed to send payment-failed inbox notification"),
+        );
+
+      req.log.info({ reference, depositId: failedDeposit.id }, "Deposit marked failed via webhook");
+      res.status(200).json({ received: true });
+      return;
+    }
+
+    // ── unhandled events ───────────────────────────────────────────────────────
     if (event.event !== "charge.success") {
       res.status(200).json({ received: true });
       return;

@@ -41,6 +41,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   completed: { label: "Completed", className: "text-blue-600 bg-blue-50 border-blue-200" },
   cancelled: { label: "Cancelled", className: "text-rose-600 bg-rose-50 border-rose-200" },
   expired:   { label: "Expired",   className: "text-gray-600 bg-gray-100 border-gray-300" },
+  failed:    { label: "Failed",    className: "text-red-700 bg-red-50 border-red-300" },
 };
 
 export default function DepositsPage() {
@@ -104,7 +105,8 @@ export default function DepositsPage() {
 
   const pendingCount  = deposits.filter(d => d.status === "pending").length;
   const expiredCount  = deposits.filter(d => d.status === "expired").length;
-  const attentionCount = pendingCount + expiredCount;
+  const failedCount   = deposits.filter(d => d.status === "failed").length;
+  const attentionCount = pendingCount + expiredCount + failedCount;
 
   return (
     <div className="space-y-6">
@@ -142,6 +144,15 @@ export default function DepositsPage() {
               <span><strong>{expiredCount}</strong> expired deposit{expiredCount !== 1 ? "s" : ""} — payment timed out</span>
             </button>
           )}
+          {failedCount > 0 && (
+            <button
+              className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-red-50 border border-red-300 text-red-700 hover:bg-red-100 transition-colors"
+              onClick={() => setFilter("failed")}
+            >
+              <AlertCircle className="h-4 w-4" />
+              <span><strong>{failedCount}</strong> failed payment{failedCount !== 1 ? "s" : ""} — M-Pesa declined</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -164,6 +175,7 @@ export default function DepositsPage() {
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="expired">Expired</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>

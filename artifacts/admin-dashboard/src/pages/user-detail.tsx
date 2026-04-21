@@ -38,6 +38,7 @@ const DEPOSIT_BADGE: Record<string, { label: string; className: string }> = {
   completed: { label: "Completed", className: "text-blue-600 bg-blue-50 border-blue-200" },
   cancelled: { label: "Cancelled", className: "text-rose-600 bg-rose-50 border-rose-200" },
   expired:   { label: "Expired",   className: "text-gray-600 bg-gray-100 border-gray-300" },
+  failed:    { label: "Failed",    className: "text-red-700 bg-red-50 border-red-300" },
 };
 
 export default function UserDetail() {
