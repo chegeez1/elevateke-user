@@ -2,25 +2,45 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/lib/auth";
+
+import Landing from "@/pages/landing";
+import Login from "@/pages/login";
+import Register from "@/pages/register";
+import Dashboard from "@/pages/dashboard";
+import Deposit from "@/pages/deposit";
+import Trade from "@/pages/trade";
+import Tasks from "@/pages/tasks";
+import Withdraw from "@/pages/withdraw";
+import Earnings from "@/pages/earnings";
+import Referrals from "@/pages/referrals";
+import Inbox from "@/pages/inbox";
+import Profile from "@/pages/profile";
+import Transactions from "@/pages/transactions";
+import FAQ from "@/pages/faq";
+import Contact from "@/pages/contact";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
-function Home() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Replit Agent is building...</h1>
-        <p className="mt-2 text-sm text-gray-600">Your app will appear here once it's ready.</p>
-      </div>
-    </div>
-  );
-}
-
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={Landing} />
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
+      <Route path="/dashboard" component={Dashboard} />
+      <Route path="/deposit" component={Deposit} />
+      <Route path="/trade" component={Trade} />
+      <Route path="/tasks" component={Tasks} />
+      <Route path="/withdraw" component={Withdraw} />
+      <Route path="/earnings" component={Earnings} />
+      <Route path="/referrals" component={Referrals} />
+      <Route path="/inbox" component={Inbox} />
+      <Route path="/profile" component={Profile} />
+      <Route path="/transactions" component={Transactions} />
+      <Route path="/faq" component={FAQ} />
+      <Route path="/contact" component={Contact} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -29,12 +49,14 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

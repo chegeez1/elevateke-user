@@ -1,0 +1,86 @@
+import { ReactNode } from "react";
+import { Link, useLocation } from "wouter";
+import { useAuth } from "@/lib/auth";
+import { useGetMe, useGetDashboardSummary } from "@workspace/api-client-react";
+import { LogOut, Home, Wallet, TrendingUp, CheckSquare, ArrowDownToLine, History, Users, Mail, User, HelpCircle, PhoneCall, Menu } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+
+export function Layout({ children }: { children: ReactNode }) {
+  const { isAuthenticated, logout } = useAuth();
+  const [, setLocation] = useLocation();
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: isAuthenticated } });
+  const { data: summary } = useGetDashboardSummary({ query: { enabled: isAuthenticated } });
+
+  if (!isAuthenticated) {
+    setLocation("/login");
+    return null;
+  }
+
+  const navItems = [
+    { href: "/dashboard", label: "Dashboard", icon: Home },
+    { href: "/deposit", label: "Deposit", icon: Wallet },
+    { href: "/trade", label: "Trade", icon: TrendingUp },
+    { href: "/tasks", label: "Tasks", icon: CheckSquare },
+    { href: "/withdraw", label: "Withdraw", icon: ArrowDownToLine },
+    { href: "/earnings", label: "Earnings", icon: History },
+    { href: "/transactions", label: "Transactions", icon: History },
+    { href: "/referrals", label: "Referrals", icon: Users },
+    { href: "/inbox", label: "Inbox", icon: Mail, badge: summary?.unreadMessages },
+    { href: "/profile", label: "Profile", icon: User },
+    { href: "/faq", label: "FAQ", icon: HelpCircle },
+    { href: "/contact", label: "Contact", icon: PhoneCall },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+      {/* Mobile Nav */}
+      <div className="md:hidden flex items-center justify-between p-4 bg-primary text-primary-foreground">
+        <span className="font-bold text-xl">ElevateKe</span>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="text-white">
+              <Menu />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="bg-primary text-white border-none">
+            <div className="flex flex-col gap-4 mt-8">
+              {navItems.map((item) => (
+                <Link key={item.href} href={item.href} className="flex items-center gap-3 p-2 hover:bg-primary-foreground/10 rounded-lg">
+                  <item.icon size={20} />
+                  <span>{item.label}</span>
+                  {item.badge ? <span className="ml-auto bg-destructive text-white text-xs px-2 py-1 rounded-full">{item.badge}</span> : null}
+                </Link>
+              ))}
+              <Button variant="ghost" className="justify-start px-2 hover:bg-primary-foreground/10 text-white" onClick={logout}>
+                <LogOut size={20} className="mr-3" /> Logout
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex flex-col w-64 bg-primary text-primary-foreground min-h-screen p-4 sticky top-0 h-screen overflow-y-auto">
+        <span className="font-bold text-2xl mb-8 px-2">ElevateKe</span>
+        <div className="flex flex-col gap-2 flex-1">
+          {navItems.map((item) => (
+            <Link key={item.href} href={item.href} className="flex items-center gap-3 p-2 hover:bg-primary-foreground/10 rounded-lg transition-colors">
+              <item.icon size={20} />
+              <span>{item.label}</span>
+              {item.badge ? <span className="ml-auto bg-destructive text-white text-xs px-2 py-1 rounded-full">{item.badge}</span> : null}
+            </Link>
+          ))}
+        </div>
+        <Button variant="ghost" className="justify-start px-2 mt-auto hover:bg-primary-foreground/10 text-white" onClick={logout}>
+          <LogOut size={20} className="mr-3" /> Logout
+        </Button>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-4 md:p-8 max-w-6xl mx-auto w-full">
+        {children}
+      </div>
+    </div>
+  );
+}
