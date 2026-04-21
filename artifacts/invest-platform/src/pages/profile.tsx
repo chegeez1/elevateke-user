@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { User, Award, History, Globe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatNumber } from "@/lib/utils";
 
 export default function Profile() {
   const { data: profile, isLoading: loadingProfile } = useGetProfile();
