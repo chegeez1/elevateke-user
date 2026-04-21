@@ -81,13 +81,21 @@ router.post(
         return;
       }
 
-      await db
+      const [markedFailed] = await db
         .update(depositsTable)
         .set({ status: "failed" })
         .where(and(
           eq(depositsTable.id, failedDeposit.id),
           eq(depositsTable.status, "pending"),
-        ));
+        ))
+        .returning();
+
+      if (!markedFailed) {
+        // Status changed between our SELECT and UPDATE (race with success webhook or verify endpoint)
+        req.log.info({ reference, depositId: failedDeposit.id }, "Deposit status changed concurrently — skipping failed notification");
+        res.status(200).json({ received: true });
+        return;
+      }
 
       const depositAmtFmt = Number(failedDeposit.amount).toLocaleString("en-KE");
       db.insert(inboxMessagesTable)
