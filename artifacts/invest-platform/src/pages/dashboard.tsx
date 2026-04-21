@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import { Wallet, TrendingUp, Gift, Zap, Star, Users, CheckCircle, ArrowDownCircle, ArrowUpCircle, Clock, Award, Bell } from "lucide-react";
+import { Wallet, TrendingUp, Gift, Zap, Star, Users, CheckCircle, ArrowDownCircle, ArrowUpCircle, Clock, Award, Bell, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 
@@ -83,6 +83,27 @@ export default function Dashboard() {
             </Badge>
           </div>
         </div>
+
+        {summary.balance === 0 && summary.totalDeposited === 0 && (
+          <Card className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-none shadow-lg">
+            <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 p-3 rounded-full">
+                  <Rocket size={24} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Make Your First Deposit</h3>
+                  <p className="text-white/80">Fund your account to start earning daily returns from our investment plans.</p>
+                </div>
+              </div>
+              <Link href="/deposit">
+                <Button variant="secondary" className="w-full sm:w-auto font-semibold">
+                  Deposit Now
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        )}
 
         {summary.loginBonusAvailable && (
           <Card className="bg-gradient-to-r from-primary to-emerald-600 text-white border-none shadow-lg">
