@@ -29,10 +29,16 @@ const GROUPS = [
     keys: ["min_withdrawal_amount", "max_withdrawal_amount"],
   },
   {
-    title: "Referral Commissions",
+    title: "Deposit Referral Bonus",
     icon: Users,
     color: "text-purple-600",
-    keys: ["referral_bonus_l1_percent", "referral_bonus_l2_percent"],
+    keys: ["referral_bonus_l1_percent", "referral_bonus_l2_percent", "referral_bonus_l3_percent"],
+  },
+  {
+    title: "Daily Earnings Referral",
+    icon: Users,
+    color: "text-green-600",
+    keys: ["referral_daily_l1_percent", "referral_daily_l2_percent", "referral_daily_l3_percent"],
   },
   {
     title: "VIP Level Thresholds",
@@ -45,6 +51,10 @@ const GROUPS = [
 const KEY_SUFFIX: Record<string, string> = {
   referral_bonus_l1_percent: "%",
   referral_bonus_l2_percent: "%",
+  referral_bonus_l3_percent: "%",
+  referral_daily_l1_percent: "%",
+  referral_daily_l2_percent: "%",
+  referral_daily_l3_percent: "%",
 };
 
 export default function SettingsPage() {
@@ -149,7 +159,8 @@ export default function SettingsPage() {
               <CardDescription>
                 {group.title === "Daily Login Bonus" && "Amounts credited to users as bonuses."}
                 {group.title === "Withdrawal Limits" && "Control the minimum and maximum per withdrawal request."}
-                {group.title === "Referral Commissions" && "Percentage of a referred user's first deposit credited to their referrers."}
+                {group.title === "Deposit Referral Bonus" && "One-time bonus paid to referrers (L1, L2, L3) when a referred user activates a deposit."}
+                {group.title === "Daily Earnings Referral" && "Percentage of a referee's daily earnings paid to their L1, L2, and L3 referrers every time the referee claims daily returns."}
                 {group.title === "VIP Level Thresholds" && "Minimum cumulative deposits required to reach each VIP tier."}
               </CardDescription>
             </CardHeader>

@@ -59,6 +59,49 @@ router.post("/earnings/claim", authenticate, async (req, res): Promise<void> => 
     balance: newBalance.toString(), totalEarned: newTotalEarned.toString(),
   }).where(eq(usersTable.id, userId));
 
+  // Pay daily referral commissions to L1, L2, L3 referrers (fire-and-forget — never blocks the user's claim)
+  if (user?.referredBy) {
+    (async () => {
+      try {
+        const allSettings = await db.select().from(platformSettingsTable);
+        const get = (key: string, def: number) => Number(allSettings.find(r => r.key === key)?.value ?? def);
+        const l1pct = get("referral_daily_l1_percent", 0);
+        const l2pct = get("referral_daily_l2_percent", 0);
+        const l3pct = get("referral_daily_l3_percent", 0);
+
+        const creditDaily = async (referrerId: number, pct: number, level: number) => {
+          const bonus = Math.floor((totalClaimed * pct) / 100);
+          if (bonus <= 0) return;
+          const [ref] = await db.select().from(usersTable).where(eq(usersTable.id, referrerId));
+          if (!ref) return;
+          await db.update(usersTable).set({
+            balance: (Number(ref.balance) + bonus).toString(),
+            totalEarned: (Number(ref.totalEarned) + bonus).toString(),
+          }).where(eq(usersTable.id, ref.id));
+          await db.insert(earningsTable).values({
+            userId: ref.id, amount: bonus.toString(), type: "referral",
+            description: `Level ${level} daily referral commission from ${user.name}'s earnings`,
+          });
+        };
+
+        // L1 — user.referredBy is guaranteed non-null (checked by outer if)
+        const r1Id = user.referredBy as number;
+        if (l1pct > 0) await creditDaily(r1Id, l1pct, 1);
+
+        // Fetch L1 to find L2
+        const [r1] = await db.select().from(usersTable).where(eq(usersTable.id, r1Id));
+        const r2Id = r1?.referredBy;
+        if (r2Id != null) {
+          if (l2pct > 0) await creditDaily(r2Id, l2pct, 2);
+          // Fetch L2 to find L3
+          const [r2] = await db.select().from(usersTable).where(eq(usersTable.id, r2Id));
+          const r3Id = r2?.referredBy;
+          if (r3Id != null && l3pct > 0) await creditDaily(r3Id, l3pct, 3);
+        }
+      } catch (_) { /* silent — referrer payouts must not break the user's claim */ }
+    })();
+  }
+
   res.json({ amount: totalClaimed, newBalance, message: `Claimed KSH ${totalClaimed} in daily earnings!` });
 });
 

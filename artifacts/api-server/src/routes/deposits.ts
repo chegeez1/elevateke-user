@@ -323,47 +323,74 @@ router.post(
       })
       .where(eq(usersTable.id, userId));
 
-    // Pay referral bonuses to referrers (if user was referred)
+    // Pay referral bonuses to referrers on deposit activation (L1, L2, L3)
     if (user?.referredBy) {
       const refSettings = await db.select().from(platformSettingsTable)
         .then(rows => {
           const get = (key: string, def: number) => Number(rows.find(r => r.key === key)?.value ?? def);
-          return { l1: get("referral_bonus_l1_percent", 0), l2: get("referral_bonus_l2_percent", 0) };
+          return {
+            l1: get("referral_bonus_l1_percent", 0),
+            l2: get("referral_bonus_l2_percent", 0),
+            l3: get("referral_bonus_l3_percent", 0),
+          };
         });
 
       const depositAmount = Number(deposit.amount);
 
+      // Helper to credit a referrer
+      const creditReferrer = async (referrer: typeof usersTable.$inferSelect, bonus: number, level: number) => {
+        await db.update(usersTable).set({
+          balance: (Number(referrer.balance) + bonus).toString(),
+          totalEarned: (Number(referrer.totalEarned) + bonus).toString(),
+        }).where(eq(usersTable.id, referrer.id));
+        await db.insert(earningsTable).values({
+          userId: referrer.id, amount: bonus.toString(), type: "referral",
+          description: `Level ${level} referral bonus from ${user.name}'s deposit`,
+        });
+      };
+
+      let referrer1: typeof usersTable.$inferSelect | undefined;
+      let referrer2: typeof usersTable.$inferSelect | undefined;
+
+      // L1
       if (refSettings.l1 > 0) {
         const l1Bonus = Math.floor((depositAmount * refSettings.l1) / 100);
         if (l1Bonus > 0) {
-          const [referrer1] = await db.select().from(usersTable).where(eq(usersTable.id, user.referredBy));
-          if (referrer1) {
-            await db.update(usersTable).set({
-              balance: (Number(referrer1.balance) + l1Bonus).toString(),
-              totalEarned: (Number(referrer1.totalEarned) + l1Bonus).toString(),
-            }).where(eq(usersTable.id, referrer1.id));
-            await db.insert(earningsTable).values({
-              userId: referrer1.id, amount: l1Bonus.toString(), type: "referral",
-              description: `Level 1 referral bonus from ${user.name}'s deposit`,
-            });
+          const [r1] = await db.select().from(usersTable).where(eq(usersTable.id, user.referredBy));
+          if (r1) {
+            referrer1 = r1;
+            await creditReferrer(r1, l1Bonus, 1);
             await db.update(referralsTable).set({ bonusAmount: l1Bonus.toString() })
-              .where(and(eq(referralsTable.referrerId, referrer1.id), eq(referralsTable.referredId, userId)));
+              .where(and(eq(referralsTable.referrerId, r1.id), eq(referralsTable.referredId, userId)));
           }
-          if (refSettings.l2 > 0 && referrer1?.referredBy) {
-            const l2Bonus = Math.floor((depositAmount * refSettings.l2) / 100);
-            if (l2Bonus > 0) {
-              const [referrer2] = await db.select().from(usersTable).where(eq(usersTable.id, referrer1.referredBy));
-              if (referrer2) {
-                await db.update(usersTable).set({
-                  balance: (Number(referrer2.balance) + l2Bonus).toString(),
-                  totalEarned: (Number(referrer2.totalEarned) + l2Bonus).toString(),
-                }).where(eq(usersTable.id, referrer2.id));
-                await db.insert(earningsTable).values({
-                  userId: referrer2.id, amount: l2Bonus.toString(), type: "referral",
-                  description: `Level 2 referral bonus from ${user.name}'s deposit`,
-                });
-              }
-            }
+        }
+      } else {
+        const [r1] = await db.select().from(usersTable).where(eq(usersTable.id, user.referredBy));
+        referrer1 = r1;
+      }
+
+      // L2
+      if (refSettings.l2 > 0 && referrer1?.referredBy) {
+        const l2Bonus = Math.floor((depositAmount * refSettings.l2) / 100);
+        if (l2Bonus > 0) {
+          const [r2] = await db.select().from(usersTable).where(eq(usersTable.id, referrer1.referredBy));
+          if (r2) {
+            referrer2 = r2;
+            await creditReferrer(r2, l2Bonus, 2);
+          }
+        }
+      } else if (referrer1?.referredBy) {
+        const [r2] = await db.select().from(usersTable).where(eq(usersTable.id, referrer1.referredBy));
+        referrer2 = r2;
+      }
+
+      // L3
+      if (refSettings.l3 > 0 && referrer2?.referredBy) {
+        const l3Bonus = Math.floor((depositAmount * refSettings.l3) / 100);
+        if (l3Bonus > 0) {
+          const [r3] = await db.select().from(usersTable).where(eq(usersTable.id, referrer2.referredBy));
+          if (r3) {
+            await creditReferrer(r3, l3Bonus, 3);
           }
         }
       }
