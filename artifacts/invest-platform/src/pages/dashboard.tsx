@@ -1,25 +1,43 @@
 import { Layout } from "@/components/layout";
-import { useGetDashboardSummary, useGetAnnouncements, useClaimLoginBonus } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetAnnouncements, useClaimLoginBonus, useGetEarnings } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import { Wallet, TrendingUp, Gift, Bell, Award } from "lucide-react";
+import { Wallet, TrendingUp, Gift, Bell, Award, Zap, Star, Users, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+
+const earningTypeIcon: Record<string, JSX.Element> = {
+  login_bonus: <Gift size={16} className="text-amber-500" />,
+  daily: <TrendingUp size={16} className="text-blue-500" />,
+  referral: <Users size={16} className="text-purple-500" />,
+  task: <CheckCircle size={16} className="text-green-500" />,
+  trade: <Zap size={16} className="text-orange-500" />,
+};
+
+const earningLabel: Record<string, string> = {
+  login_bonus: "Daily Login Bonus",
+  daily: "Daily Return",
+  referral: "Referral Bonus",
+  task: "Task Reward",
+  trade: "Trade Profit",
+};
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
   const { data: announcements, isLoading: loadingAnnouncements } = useGetAnnouncements();
+  const { data: recentEarnings } = useGetEarnings();
   const claimBonusMut = useClaimLoginBonus();
   const queryClient = useQueryClient();
 
   const handleClaimBonus = () => {
     claimBonusMut.mutate(undefined, {
       onSuccess: (res) => {
-        toast.success(`Claimed KSH ${res.amount}!`, { description: res.message });
+        toast.success(`🎉 Claimed KSH ${res.amount}!`, { description: res.message });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       },
       onError: (err) => {
         toast.error("Failed to claim bonus", { description: err.data?.error || "Unknown error" });
@@ -133,6 +151,37 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2"><Star size={18} className="text-amber-500" /> Recent Activity</CardTitle>
+              <Link href="/earnings"><Button variant="ghost" size="sm" className="text-primary text-xs">View All</Button></Link>
+            </CardHeader>
+            <CardContent>
+              {recentEarnings && recentEarnings.length > 0 ? (
+                <div className="space-y-3">
+                  {recentEarnings.slice(0, 5).map(e => (
+                    <div key={e.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-gray-100 p-2 rounded-full">
+                          {earningTypeIcon[e.type] ?? <Zap size={16} className="text-gray-500" />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{earningLabel[e.type] ?? e.type}</p>
+                          <p className="text-xs text-gray-400">{new Date(e.createdAt).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-green-600 text-sm">+ KSH {formatNumber(e.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center p-8 bg-gray-50 rounded-xl border border-dashed text-gray-500 text-sm">
+                  No activity yet. Claim your daily bonus or start investing!
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Active Trade</CardTitle>
