@@ -222,6 +222,8 @@ export interface Earning {
 
 export interface ReinvestBody {
   amount: number;
+  /** ID of the deposit plan to reinvest into. Auto-selects cheapest eligible plan if omitted. */
+  planId?: number;
 }
 
 export interface Task {

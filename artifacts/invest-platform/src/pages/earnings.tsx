@@ -1,6 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Layout } from "@/components/layout";
-import { useGetEarnings, useClaimDailyEarnings, useReinvestEarnings, useGetDashboardSummary, type ErrorType, type ErrorResponse } from "@workspace/api-client-react";
+import {
+  useGetEarnings, useClaimDailyEarnings, useReinvestEarnings,
+  useGetDashboardSummary, useGetPlans,
+  type ErrorType, type ErrorResponse, type DepositPlan,
+} from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
@@ -9,9 +13,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { History, Coins, ArrowRightLeft, Clock, CheckCircle2, TrendingUp, Wallet } from "lucide-react";
+import { History, Coins, ArrowRightLeft, Clock, CheckCircle2, TrendingUp, Wallet, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 function useMidnightCountdown(nextEarningAt: string) {
   const [label, setLabel] = useState("");
@@ -66,21 +71,99 @@ function CountdownCard({ nextEarningAt, dailyRate }: { nextEarningAt: string; da
   );
 }
 
+function PlanCard({
+  plan, selected, amount, onClick,
+}: {
+  plan: DepositPlan; selected: boolean; amount: number; onClick: () => void;
+}) {
+  const eligible = amount >= plan.minAmount && (plan.maxAmount == null || amount <= plan.maxAmount);
+  const dailyEarning = amount * plan.dailyRate;
+
+  return (
+    <button
+      type="button"
+      disabled={!eligible}
+      onClick={eligible ? onClick : undefined}
+      className={cn(
+        "w-full text-left rounded-lg border-2 p-3 transition-all",
+        selected && eligible
+          ? "border-primary bg-primary/5"
+          : eligible
+            ? "border-gray-200 hover:border-primary/50 hover:bg-gray-50"
+            : "border-gray-100 opacity-40 cursor-not-allowed",
+      )}
+    >
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="font-semibold text-sm flex items-center gap-1">
+            {selected && eligible && <Star size={12} className="text-primary fill-primary" />}
+            {plan.name}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            KSH {formatNumber(plan.minAmount)}
+            {plan.maxAmount ? ` – ${formatNumber(plan.maxAmount)}` : "+"}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-gray-500">{(plan.dailyRate * 100).toFixed(1)}%/day</p>
+          {eligible && (
+            <p className="text-xs font-bold text-green-600">
+              +KSH {formatNumber(Math.round(dailyEarning))}/day
+            </p>
+          )}
+        </div>
+      </div>
+      <p className="text-xs text-gray-400 mt-1">{plan.durationDays} days</p>
+    </button>
+  );
+}
+
 export default function Earnings() {
   const { data: earnings, isLoading } = useGetEarnings();
   const { data: summary, isLoading: summaryLoading, isError: summaryError } = useGetDashboardSummary();
+  const { data: plans } = useGetPlans();
   const claimMut = useClaimDailyEarnings();
   const reinvestMut = useReinvestEarnings();
   const queryClient = useQueryClient();
 
   const [reinvestOpen, setReinvestOpen] = useState(false);
   const [reinvestAmount, setReinvestAmount] = useState("");
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
 
   const canClaim = summary?.canClaimEarnings === true;
   const claimableAmount = summary?.claimableEarningsTotal ?? 0;
   const dailyRate = summary?.dailyEarningsTotal ?? 0;
   const nextEarningAt: string | null = summary?.nextEarningAt ?? null;
   const hasActiveDeposit = (summary?.activeDeposits ?? 0) > 0;
+  const maxBalance = summary?.balance ?? 0;
+
+  const activePlans = useMemo(
+    () => (plans ?? []).filter(p => p.isActive),
+    [plans],
+  );
+
+  const amt = Number(reinvestAmount) || 0;
+
+  // Auto-select cheapest eligible plan when amount changes
+  useEffect(() => {
+    if (amt <= 0 || activePlans.length === 0) return;
+    const eligible = activePlans
+      .filter(p => amt >= p.minAmount && (p.maxAmount == null || amt <= p.maxAmount))
+      .sort((a, b) => a.minAmount - b.minAmount);
+    if (eligible.length > 0 && (selectedPlanId === null || !eligible.find(p => p.id === selectedPlanId))) {
+      setSelectedPlanId(eligible[0].id);
+    }
+  }, [amt, activePlans]);
+
+  const selectedPlan = activePlans.find(p => p.id === selectedPlanId) ?? null;
+  const estimatedDaily = selectedPlan ? Math.round(amt * selectedPlan.dailyRate) : 0;
+
+  const planError = useMemo(() => {
+    if (amt <= 0) return null;
+    if (!selectedPlan) return "No eligible plan for this amount";
+    if (amt > maxBalance) return "Amount exceeds your available balance";
+    return null;
+  }, [amt, selectedPlan, maxBalance]);
 
   const handleClaim = () => {
     claimMut.mutate(undefined, {
@@ -97,18 +180,25 @@ export default function Earnings() {
 
   const handleReinvest = (e: React.FormEvent) => {
     e.preventDefault();
-    reinvestMut.mutate({ data: { amount: Number(reinvestAmount) } }, {
-      onSuccess: (res) => {
-        toast.success("Successfully reinvested!", { description: res.message });
-        setReinvestOpen(false);
-        setReinvestAmount("");
-        queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
-      },
-      onError: () => {
-        toast.error("Reinvestment failed", { description: "Please check your balance and try again." });
+    if (!selectedPlan) { toast.error("Please select a plan"); return; }
+    if (planError) { toast.error(planError); return; }
+    reinvestMut.mutate(
+      { data: { amount: amt, planId: selectedPlan.id } },
+      {
+        onSuccess: (res) => {
+          toast.success("Reinvestment activated!", { description: res.message });
+          setReinvestOpen(false);
+          setReinvestAmount("");
+          setSelectedPlanId(null);
+          queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/deposits"] });
+        },
+        onError: (err: ErrorType<ErrorResponse>) => {
+          toast.error("Reinvestment failed", { description: err.data?.error ?? "Please try again." });
+        }
       }
-    });
+    );
   };
 
   const getEarningColor = (type: string) => {
@@ -223,7 +313,12 @@ export default function Earnings() {
                   Available: <strong className="text-primary">KSH {formatNumber(summary?.balance ?? 0)}</strong>
                 </div>
               </div>
-              <Button variant="outline" className="w-full mt-4" onClick={() => setReinvestOpen(true)} disabled={!summary?.balance || summary.balance <= 0}>
+              <Button
+                variant="outline"
+                className="w-full mt-4"
+                onClick={() => setReinvestOpen(true)}
+                disabled={!summary?.balance || summary.balance <= 0}
+              >
                 Reinvest Balance
               </Button>
             </CardContent>
@@ -267,31 +362,80 @@ export default function Earnings() {
         </Card>
 
         {/* Reinvest Dialog */}
-        <Dialog open={reinvestOpen} onOpenChange={setReinvestOpen}>
-          <DialogContent>
+        <Dialog open={reinvestOpen} onOpenChange={open => {
+          setReinvestOpen(open);
+          if (!open) { setReinvestAmount(""); setSelectedPlanId(null); }
+        }}>
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Reinvest Earnings</DialogTitle>
+              <DialogTitle>Reinvest Balance into a Plan</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleReinvest} className="space-y-4">
               <div className="bg-gray-50 p-3 rounded-md text-sm">
-                Available Balance: <strong className="text-primary">KSH {formatNumber(summary?.balance || 0)}</strong>
+                Available Balance: <strong className="text-primary">KSH {formatNumber(maxBalance)}</strong>
               </div>
-              <div className="space-y-2">
+
+              {/* Amount input */}
+              <div className="space-y-1">
                 <Label htmlFor="reinvestAmount">Amount to Reinvest (KSH)</Label>
                 <Input
                   id="reinvestAmount"
                   type="number"
-                  min="100"
-                  max={summary?.balance}
+                  min="500"
+                  max={maxBalance}
+                  step="1"
                   value={reinvestAmount}
                   onChange={e => setReinvestAmount(e.target.value)}
+                  placeholder="Enter amount"
                   required
                 />
+                {planError && <p className="text-xs text-red-500">{planError}</p>}
               </div>
+
+              {/* Plan selector */}
+              {activePlans.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Select Investment Plan</Label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {activePlans.map(plan => (
+                      <PlanCard
+                        key={plan.id}
+                        plan={plan}
+                        selected={selectedPlanId === plan.id}
+                        amount={amt}
+                        onClick={() => setSelectedPlanId(plan.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Estimated earnings preview */}
+              {selectedPlan && amt > 0 && !planError && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm space-y-1">
+                  <p className="font-semibold text-green-800">Estimated Returns — {selectedPlan.name}</p>
+                  <div className="flex justify-between text-green-700">
+                    <span>Daily earning</span>
+                    <span className="font-bold">KSH {formatNumber(estimatedDaily)}</span>
+                  </div>
+                  <div className="flex justify-between text-green-700">
+                    <span>Duration</span>
+                    <span>{selectedPlan.durationDays} days</span>
+                  </div>
+                  <div className="flex justify-between text-green-700 border-t border-green-200 pt-1 mt-1">
+                    <span>Total return</span>
+                    <span className="font-bold">KSH {formatNumber(estimatedDaily * selectedPlan.durationDays)}</span>
+                  </div>
+                </div>
+              )}
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setReinvestOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={reinvestMut.isPending}>
-                  {reinvestMut.isPending ? "Processing..." : "Reinvest"}
+                <Button
+                  type="submit"
+                  disabled={reinvestMut.isPending || !selectedPlan || !!planError || amt <= 0}
+                >
+                  {reinvestMut.isPending ? "Processing..." : "Reinvest Now"}
                 </Button>
               </DialogFooter>
             </form>

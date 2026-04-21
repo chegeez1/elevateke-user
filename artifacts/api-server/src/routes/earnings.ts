@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, earningsTable, usersTable, depositsTable, depositPlansTable } from "@workspace/db";
-import { eq, and, gte, desc } from "drizzle-orm";
+import { db, earningsTable, usersTable, depositsTable, depositPlansTable, inboxMessagesTable, platformSettingsTable } from "@workspace/db";
+import { eq, and, gte, desc, asc } from "drizzle-orm";
 import { authenticate } from "../middlewares/auth";
 import type { JwtPayload } from "../middlewares/auth";
 import { ReinvestEarningsBody } from "@workspace/api-zod";
@@ -67,18 +67,94 @@ router.post("/earnings/reinvest", authenticate, async (req, res): Promise<void> 
   const parsed = ReinvestEarningsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const { amount, planId } = parsed.data;
+
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user || Number(user.balance) < parsed.data.amount) {
+  if (!user || Number(user.balance) < amount) {
     res.status(400).json({ error: "Insufficient balance" }); return;
   }
 
-  const newBalance = Number(user.balance) - parsed.data.amount;
-  const newDeposited = Number(user.totalDeposited) + parsed.data.amount;
+  // Resolve deposit plan — use provided planId or auto-select cheapest eligible
+  let plan: typeof depositPlansTable.$inferSelect | undefined;
+
+  if (planId) {
+    const [found] = await db.select().from(depositPlansTable)
+      .where(and(eq(depositPlansTable.id, planId), eq(depositPlansTable.isActive, true)));
+    if (!found) { res.status(400).json({ error: "Selected plan not found or inactive" }); return; }
+    if (amount < Number(found.minAmount)) {
+      res.status(400).json({ error: `Minimum for ${found.name} is KSH ${found.minAmount}` }); return;
+    }
+    if (found.maxAmount !== null && amount > Number(found.maxAmount)) {
+      res.status(400).json({ error: `Maximum for ${found.name} is KSH ${found.maxAmount}` }); return;
+    }
+    plan = found;
+  } else {
+    // Auto-select cheapest eligible plan
+    const plans = await db.select().from(depositPlansTable)
+      .where(eq(depositPlansTable.isActive, true))
+      .orderBy(asc(depositPlansTable.minAmount));
+    plan = plans.find(p =>
+      amount >= Number(p.minAmount) &&
+      (p.maxAmount === null || amount <= Number(p.maxAmount))
+    );
+    if (!plan) {
+      res.status(400).json({ error: `Amount KSH ${amount} does not fit any active plan. Minimum is KSH ${plans[0]?.minAmount ?? 500}.` }); return;
+    }
+  }
+
+  // Create the deposit record (active immediately — no M-Pesa needed for reinvestment)
+  const now = new Date();
+  const endsAt = new Date(now.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
+  const dailyEarning = amount * Number(plan.dailyRate);
+
+  await db.insert(depositsTable).values({
+    userId,
+    planId: plan.id,
+    amount: amount.toString(),
+    bonusAmount: "0",
+    dailyEarning: dailyEarning.toString(),
+    status: "active",
+    paystackRef: `reinvest-${Date.now()}-${userId}`,
+    startsAt: now,
+    endsAt,
+    lastEarningAt: now,
+  });
+
+  // Deduct balance, update totalDeposited
+  const newBalance = Number(user.balance) - amount;
+  const newDeposited = Number(user.totalDeposited) + amount;
+
+  // Recalculate VIP level from platform settings
+  const vipSettings = await db.select().from(platformSettingsTable)
+    .then(rows => {
+      const get = (key: string, def: number) => Number(rows.find(r => r.key === key)?.value ?? def);
+      return {
+        silver: get("vip_silver_min", 5000),
+        gold: get("vip_gold_min", 20000),
+        platinum: get("vip_platinum_min", 50000),
+      };
+    });
+  let vipLevel = "Bronze";
+  if (newDeposited >= vipSettings.platinum) vipLevel = "Platinum";
+  else if (newDeposited >= vipSettings.gold) vipLevel = "Gold";
+  else if (newDeposited >= vipSettings.silver) vipLevel = "Silver";
+
   await db.update(usersTable).set({
-    balance: newBalance.toString(), totalDeposited: newDeposited.toString(),
+    balance: newBalance.toString(),
+    totalDeposited: newDeposited.toString(),
+    vipLevel,
   }).where(eq(usersTable.id, userId));
 
-  res.json({ success: true, message: `KSH ${parsed.data.amount} reinvested from your balance` });
+  // Send inbox notification
+  const dailyFmt = dailyEarning.toLocaleString("en-KE");
+  const amountFmt = amount.toLocaleString("en-KE");
+  db.insert(inboxMessagesTable).values({
+    userId,
+    title: "Reinvestment Activated",
+    content: `Your reinvestment of KSH ${amountFmt} under the ${plan.name} plan is now active. You will earn KSH ${dailyFmt} per day for ${plan.durationDays} days.`,
+  }).catch(() => {});
+
+  res.json({ success: true, message: `KSH ${amountFmt} reinvested into ${plan.name}. Earning KSH ${dailyFmt}/day!` });
 });
 
 export default router;

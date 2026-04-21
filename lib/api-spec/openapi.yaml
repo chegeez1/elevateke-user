@@ -1390,6 +1390,9 @@ components:
       properties:
         amount:
           type: number
+        planId:
+          type: integer
+          description: ID of the deposit plan to reinvest into. Auto-selects cheapest eligible plan if omitted.
       required: [amount]
 
     Task:

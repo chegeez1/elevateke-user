@@ -340,6 +340,12 @@ export const ClaimDailyEarningsResponse = zod.object({
  */
 export const ReinvestEarningsBody = zod.object({
   amount: zod.number(),
+  planId: zod
+    .number()
+    .optional()
+    .describe(
+      "ID of the deposit plan to reinvest into. Auto-selects cheapest eligible plan if omitted.",
+    ),
 });
 
 export const ReinvestEarningsResponse = zod.object({
