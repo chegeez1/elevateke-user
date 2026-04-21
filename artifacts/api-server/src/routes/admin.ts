@@ -57,20 +57,19 @@ router.get("/admin/users/:id", async (req, res): Promise<void> => {
   const withdrawals = await db.select().from(withdrawalsTable).where(eq(withdrawalsTable.userId, id));
 
   res.json({
-    ...formatUser(user),
-    referredBy: user.referredBy ?? null,
+    user: { ...formatUser(user), referredBy: user.referredBy ?? null },
     deposits: deposits.map(d => ({ id: d.id, amount: Number(d.amount), status: d.status, createdAt: d.createdAt.toISOString() })),
-    withdrawals: withdrawals.map(w => ({ id: w.id, amount: Number(w.amount), status: w.status, createdAt: w.createdAt.toISOString() })),
+    withdrawals: withdrawals.map(w => ({ id: w.id, amount: Number(w.amount), status: w.status, createdAt: w.requestedAt.toISOString() })),
   });
 });
 
-router.patch("/admin/users/:id/suspend", async (req, res): Promise<void> => {
+router.post("/admin/users/:id/suspend", async (req, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   await db.update(usersTable).set({ isSuspended: true }).where(eq(usersTable.id, id));
   res.json({ success: true, message: "User suspended" });
 });
 
-router.patch("/admin/users/:id/unsuspend", async (req, res): Promise<void> => {
+router.post("/admin/users/:id/unsuspend", async (req, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   await db.update(usersTable).set({ isSuspended: false }).where(eq(usersTable.id, id));
   res.json({ success: true, message: "User unsuspended" });
