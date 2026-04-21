@@ -146,10 +146,8 @@ export default function Deposit() {
         setVerifyAttempts(a => a + 1);
         if (err.data?.expired) {
           setIsExpired(true);
-          setVerifyError("This payment request has expired (30 minute limit). Please start a new deposit.");
-        } else {
-          setVerifyError(err.data?.error ?? "Payment not yet received. Please try again.");
         }
+        setVerifyError(err.data?.error ?? "Payment not yet received. Please try again.");
       },
     });
   };

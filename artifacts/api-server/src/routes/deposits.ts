@@ -197,7 +197,7 @@ router.post(
     }
     if (deposit.status === "expired") {
       res.status(410).json({
-        error: "This payment request has expired (30 minutes limit). Please start a new deposit.",
+        error: `This payment request has expired (${EXPIRE_AFTER_MINUTES} minute limit). Please start a new deposit.`,
         expired: true,
       });
       return;
