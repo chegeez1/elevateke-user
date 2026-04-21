@@ -17,6 +17,7 @@ import Trade from "@/pages/trade";
 import Announcements from "@/pages/announcements";
 import Messages from "@/pages/messages";
 import Reports from "@/pages/reports";
+import DepositsPage from "@/pages/deposits";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -66,6 +67,7 @@ function Router() {
       <Route path="/users/:id"><ProtectedRoute component={UserDetail} /></Route>
       <Route path="/plans"><ProtectedRoute component={Plans} /></Route>
       <Route path="/tasks"><ProtectedRoute component={Tasks} /></Route>
+      <Route path="/deposits"><ProtectedRoute component={DepositsPage} /></Route>
       <Route path="/withdrawals"><ProtectedRoute component={Withdrawals} /></Route>
       <Route path="/trade"><ProtectedRoute component={Trade} /></Route>
       <Route path="/announcements"><ProtectedRoute component={Announcements} /></Route>

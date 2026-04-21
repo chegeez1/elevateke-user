@@ -164,6 +164,76 @@ router.delete("/admin/tasks/:id", async (req, res): Promise<void> => {
   res.json({ success: true, message: "Task deleted" });
 });
 
+router.get("/admin/deposits", async (_req, res): Promise<void> => {
+  const deposits = await db.select({
+    d: depositsTable,
+    userName: usersTable.name,
+    userEmail: usersTable.email,
+    userPhone: usersTable.phone,
+    planName: depositPlansTable.name,
+  }).from(depositsTable)
+    .leftJoin(usersTable, eq(depositsTable.userId, usersTable.id))
+    .leftJoin(depositPlansTable, eq(depositsTable.planId, depositPlansTable.id))
+    .orderBy(desc(depositsTable.createdAt));
+  res.json(deposits.map(({ d, userName, userEmail, userPhone, planName }) => ({
+    id: d.id, userId: d.userId,
+    userName: userName ?? "Unknown", userEmail: userEmail ?? "", userPhone: userPhone ?? "",
+    planName: planName ?? "Unknown", amount: Number(d.amount), bonusAmount: Number(d.bonusAmount),
+    dailyEarning: Number(d.dailyEarning), status: d.status,
+    paystackRef: d.paystackRef ?? null, autoRenew: d.autoRenew,
+    startsAt: d.startsAt?.toISOString() ?? null, endsAt: d.endsAt?.toISOString() ?? null,
+    createdAt: d.createdAt.toISOString(),
+  })));
+});
+
+router.patch("/admin/deposits/:id/activate", async (req, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const [deposit] = await db.select().from(depositsTable).where(eq(depositsTable.id, id));
+  if (!deposit) { res.status(404).json({ error: "Deposit not found" }); return; }
+  if (deposit.status !== "pending") { res.status(400).json({ error: "Only pending deposits can be activated" }); return; }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, deposit.userId));
+  const [updated] = await db.update(depositsTable).set({
+    status: "active", startsAt: new Date(),
+  }).where(eq(depositsTable.id, id)).returning();
+
+  const newDeposited = Number(user?.totalDeposited ?? 0) + Number(deposit.amount) + Number(deposit.bonusAmount);
+  const newBalance = Number(user?.balance ?? 0) + Number(deposit.bonusAmount);
+  const vipRows = await db.select().from(platformSettingsTable);
+  const get = (key: string, def: number) => Number(vipRows.find(r => r.key === key)?.value ?? def);
+  let vipLevel = "Bronze";
+  if (newDeposited >= get("vip_platinum_min", 50000)) vipLevel = "Platinum";
+  else if (newDeposited >= get("vip_gold_min", 20000)) vipLevel = "Gold";
+  else if (newDeposited >= get("vip_silver_min", 5000)) vipLevel = "Silver";
+
+  await db.update(usersTable).set({
+    totalDeposited: newDeposited.toString(), balance: newBalance.toString(), vipLevel,
+  }).where(eq(usersTable.id, deposit.userId));
+
+  await db.insert(inboxMessagesTable).values({
+    userId: deposit.userId,
+    title: "Deposit Activated",
+    content: `Your deposit of KSH ${Number(deposit.amount).toLocaleString("en-KE")} has been manually activated by admin. You will earn KSH ${Number(deposit.dailyEarning).toLocaleString("en-KE")} per day.`,
+  });
+
+  res.json({ success: true, message: "Deposit activated", deposit: updated });
+});
+
+router.patch("/admin/deposits/:id/cancel", async (req, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const [deposit] = await db.select().from(depositsTable).where(eq(depositsTable.id, id));
+  if (!deposit) { res.status(404).json({ error: "Deposit not found" }); return; }
+  if (!["pending", "active"].includes(deposit.status)) { res.status(400).json({ error: "Cannot cancel this deposit" }); return; }
+
+  await db.update(depositsTable).set({ status: "cancelled" }).where(eq(depositsTable.id, id));
+  await db.insert(inboxMessagesTable).values({
+    userId: deposit.userId,
+    title: "Deposit Cancelled",
+    content: `Your deposit of KSH ${Number(deposit.amount).toLocaleString("en-KE")} has been cancelled by admin. Please contact support if you believe this is an error.`,
+  });
+  res.json({ success: true, message: "Deposit cancelled" });
+});
+
 router.get("/admin/withdrawals", async (_req, res): Promise<void> => {
   const withdrawals = await db.select({
     w: withdrawalsTable,
