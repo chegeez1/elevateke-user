@@ -48,18 +48,24 @@ function formatTrade(t: typeof tradesTable.$inferSelect) {
 
 function generateChartData() {
   const points = [];
-  let price = 1000 + Math.random() * 200;
+  let price = 1000 + Math.random() * 100;
   const now = Date.now();
+  // Use a slight trend bias — much smaller than the random component so the
+  // chart visibly goes both up and down like a real market.
+  const trendBias = tradeSettings.direction === "up" ? 0.4 : -0.4;
   for (let i = 59; i >= 0; i--) {
-    const change = (Math.random() - 0.5) * 20;
-    price = Math.max(800, price + change + (tradeSettings.direction === "up" ? 2 : -2));
+    const volatility = 15 + Math.random() * 10;
+    const change = (Math.random() - 0.5) * volatility + trendBias;
+    price = Math.max(800, Math.min(1400, price + change));
+    const open = Math.round((price - Math.abs(change) * 0.5) * 100) / 100;
+    const close = Math.round(price * 100) / 100;
     points.push({
-      time: new Date(now - i * 60000).toISOString(),
-      price: Math.round(price * 100) / 100,
-      open: Math.round((price - Math.abs(change)) * 100) / 100,
-      close: Math.round(price * 100) / 100,
-      high: Math.round((price + Math.random() * 10) * 100) / 100,
-      low: Math.round((price - Math.random() * 10) * 100) / 100,
+      timestamp: new Date(now - i * 60000).toISOString(),
+      price: close,
+      open,
+      close,
+      high: Math.round((price + Math.random() * 8) * 100) / 100,
+      low: Math.round((price - Math.random() * 8) * 100) / 100,
     });
   }
   return points;
