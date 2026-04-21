@@ -1,17 +1,40 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
-import { useGetPlans, useCreateDeposit, useVerifyDeposit, useGetDeposits, customFetch } from "@workspace/api-client-react";
+import {
+  useGetPlans,
+  useCreateDeposit,
+  useVerifyDeposit,
+  useGetDeposits,
+  customFetch,
+  type ErrorType,
+} from "@workspace/api-client-react";
+import type { ErrorResponse } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { formatNumber } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, AlertTriangle, Clock, RefreshCw, XCircle } from "lucide-react";
+
+type ApiErrorData = { error: string; expired?: boolean; retryable?: boolean };
+type VerifyError = ErrorType<ApiErrorData>;
+
+type DepositItem = {
+  id: number;
+  planName: string;
+  amount: number;
+  status: string;
+  createdAt: string;
+  expiresAt?: string | null;
+};
 
 function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
   const [remaining, setRemaining] = useState("");
@@ -50,7 +73,9 @@ const statusBadge = (status: string) => {
 
 export default function Deposit() {
   const { data: plans, isLoading: loadingPlans } = useGetPlans();
-  const { data: deposits, isLoading: loadingDeposits } = useGetDeposits();
+  const { data: depositsRaw, isLoading: loadingDeposits } = useGetDeposits();
+  const deposits = depositsRaw as DepositItem[] | undefined;
+
   const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState("");
@@ -90,20 +115,20 @@ export default function Deposit() {
   const handleInitiateDeposit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlan) return;
-
     createDepositMut.mutate({ data: { planId: selectedPlan, amount: Number(amount), phone } }, {
       onSuccess: (res) => {
         setCurrentReference(res.reference);
         setCurrentAuthUrl(res.paystackAuthUrl);
-        setDepositExpiresAt(res.deposit?.expiresAt ?? null);
+        const dep = res.deposit as (typeof res.deposit & { expiresAt?: string | null }) | undefined;
+        setDepositExpiresAt(dep?.expiresAt ?? null);
         setVerifyAttempts(0);
         setVerifyError(null);
         setIsExpired(false);
         setPaymentStep("paystack");
       },
-      onError: (err) => {
-        toast.error("Failed to initiate deposit", { description: (err as any).data?.error || "Unknown error" });
-      }
+      onError: (err: ErrorType<ErrorResponse>) => {
+        toast.error("Failed to initiate deposit", { description: err.data?.error ?? "Unknown error" });
+      },
     });
   };
 
@@ -117,16 +142,15 @@ export default function Deposit() {
         queryClient.invalidateQueries({ queryKey: ["/api/activity"] });
         resetDialog();
       },
-      onError: (err: any) => {
-        const errData = err.data ?? {};
+      onError: (err: VerifyError) => {
         setVerifyAttempts(a => a + 1);
-        if (errData.expired) {
+        if (err.data?.expired) {
           setIsExpired(true);
           setVerifyError("This payment request has expired (30 minute limit). Please start a new deposit.");
         } else {
-          setVerifyError(errData.error || "Payment not yet received. Please try again.");
+          setVerifyError(err.data?.error ?? "Payment not yet received. Please try again.");
         }
-      }
+      },
     });
   };
 
@@ -197,19 +221,19 @@ export default function Deposit() {
 
           <TabsContent value="history">
             <Card>
-              <CardHeader>
-                <CardTitle>Deposit History</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Deposit History</CardTitle></CardHeader>
               <CardContent>
                 {loadingDeposits ? (
                   <div className="text-center p-4">Loading...</div>
                 ) : deposits && deposits.length > 0 ? (
                   <div className="space-y-4">
-                    {deposits.map((dep: any) => (
+                    {deposits.map(dep => (
                       <div key={dep.id} className="flex justify-between items-center p-4 border rounded-lg bg-gray-50">
                         <div className="space-y-1">
                           <div className="font-bold">{dep.planName}</div>
-                          <div className="text-sm text-gray-500">{new Date(dep.createdAt).toLocaleDateString()}</div>
+                          <div className="text-sm text-gray-500">
+                            {new Date(dep.createdAt).toLocaleDateString()}
+                          </div>
                           {dep.status === "pending" && dep.expiresAt && (
                             <ExpiryCountdown expiresAt={dep.expiresAt} />
                           )}
@@ -311,9 +335,9 @@ export default function Deposit() {
                         disabled={verifyDepositMut.isPending}
                       >
                         {verifyDepositMut.isPending ? (
-                          <><RefreshCw size={14} className="mr-2 animate-spin" /> Verifying...</>
+                          <><RefreshCw size={14} className="mr-2 animate-spin" />Verifying...</>
                         ) : verifyAttempts > 0 ? (
-                          <><RefreshCw size={14} className="mr-2" /> Try Again</>
+                          <><RefreshCw size={14} className="mr-2" />Try Again</>
                         ) : (
                           "I've Completed Payment"
                         )}

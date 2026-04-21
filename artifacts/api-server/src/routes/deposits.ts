@@ -12,9 +12,10 @@ import { CreateDepositBody, VerifyDepositBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-const EXPIRE_AFTER_MS = 30 * 60 * 1000; // 30 minutes
+const EXPIRE_AFTER_MINUTES = Math.max(1, Number(process.env.DEPOSIT_PENDING_TTL_MINUTES ?? "30"));
+const EXPIRE_AFTER_MS = EXPIRE_AFTER_MINUTES * 60 * 1000;
 
-async function expireStalePendingDeposits(userId?: number) {
+export async function expireStalePendingDeposits(userId?: number) {
   const cutoff = new Date(Date.now() - EXPIRE_AFTER_MS);
   const where = userId !== undefined
     ? and(eq(depositsTable.status, "pending"), lt(depositsTable.createdAt, cutoff), eq(depositsTable.userId, userId))
