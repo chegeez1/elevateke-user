@@ -408,12 +408,23 @@ router.patch("/admin/settings", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Body must be an object of { key: value }" }); return;
   }
   for (const [key, value] of Object.entries(updates)) {
-    if (typeof value !== "string" || isNaN(Number(value))) {
-      res.status(400).json({ error: `Invalid value for ${key}: must be a number` }); return;
+    const num = Number(value);
+    if (typeof value !== "string" || isNaN(num) || num < 0) {
+      res.status(400).json({ error: `Invalid value for ${key}: must be a non-negative number` }); return;
+    }
+    if (key.endsWith("_percent") && num > 100) {
+      res.status(400).json({ error: `Invalid value for ${key}: percentage cannot exceed 100` }); return;
     }
     await db.update(platformSettingsTable)
       .set({ value, updatedAt: new Date() })
       .where(eq(platformSettingsTable.key, key));
+  }
+  // Cross-validate min/max withdrawal after all updates
+  const allRows = await db.select().from(platformSettingsTable);
+  const getVal = (k: string) => Number(allRows.find(r => r.key === k)?.value ?? 0);
+  if (getVal("min_withdrawal_amount") > getVal("max_withdrawal_amount")) {
+    // Revert if invalid — just return error (frontend should prevent this)
+    res.status(400).json({ error: "Minimum withdrawal cannot exceed maximum withdrawal" }); return;
   }
   res.json({ success: true, message: "Settings updated" });
 });

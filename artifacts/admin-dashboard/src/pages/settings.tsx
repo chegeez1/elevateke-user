@@ -73,6 +73,27 @@ export default function SettingsPage() {
   const handleSave = async (keys: string[]) => {
     const subset: Record<string, string> = {};
     for (const k of keys) if (values[k] !== undefined) subset[k] = values[k];
+
+    // Validate all values are non-negative numbers
+    for (const [k, v] of Object.entries(subset)) {
+      const n = Number(v);
+      if (isNaN(n) || n < 0) {
+        toast({ title: "Invalid value", description: `"${settings[k]?.label ?? k}" must be a non-negative number.`, variant: "destructive" });
+        return;
+      }
+      if (k.endsWith("_percent") && n > 100) {
+        toast({ title: "Invalid value", description: `"${settings[k]?.label ?? k}" cannot exceed 100%.`, variant: "destructive" });
+        return;
+      }
+    }
+    // Cross-field: ensure min ≤ max for withdrawal limits
+    const minVal = Number(subset.min_withdrawal_amount ?? values.min_withdrawal_amount ?? 0);
+    const maxVal = Number(subset.max_withdrawal_amount ?? values.max_withdrawal_amount ?? 0);
+    if (minVal > 0 && maxVal > 0 && minVal > maxVal) {
+      toast({ title: "Invalid range", description: "Minimum withdrawal cannot exceed maximum withdrawal.", variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
     try {
       await customFetch("/api/admin/settings", {
