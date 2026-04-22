@@ -15,7 +15,9 @@ Here's what you'll unlock once you deposit:
 
 Getting started takes less than 2 minutes via M-Pesa STK Push.
 
-Head to your Deposit page, choose a plan that suits you, and start growing your money today.
+Head to your Deposit page to get started: /deposit
+
+Choose a plan that suits you and start growing your money today.
 
 If you have any questions, our support team is happy to help — just reply to this message.
 

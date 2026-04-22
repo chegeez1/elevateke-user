@@ -7,6 +7,7 @@ import { signToken, authenticate } from "../middlewares/auth";
 import type { JwtPayload } from "../middlewares/auth";
 import { loginHistoryTable } from "@workspace/db";
 import crypto from "crypto";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -91,12 +92,14 @@ Here's how to get started in 3 simple steps:
 
 The more you invest, the higher your VIP tier and daily earning rate.
 
-We're excited to have you on board. Head to the Deposit page to fund your account and start your earning journey today!
+We're excited to have you on board. Head to your Deposit page to get started: /deposit
 
 If you have any questions, our team is here to help.
 
 — The ElevateKe Team`,
-  }).catch(() => {});
+  }).catch((err: unknown) => {
+    logger.warn({ err, userId: user.id }, "Failed to send welcome inbox message");
+  });
 
   const token = signToken({ userId: user.id, isAdmin: user.isAdmin });
   res.status(201).json({ user: formatUser(user), token });
