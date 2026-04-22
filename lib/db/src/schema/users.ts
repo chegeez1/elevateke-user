@@ -22,6 +22,7 @@ export const usersTable = pgTable("users", {
   loginBonusClaimedAt: timestamp("login_bonus_claimed_at", { withTimezone: true }),
   depositReminderSentAt: timestamp("deposit_reminder_sent_at", { withTimezone: true }),
   depositReminder2SentAt: timestamp("deposit_reminder2_sent_at", { withTimezone: true }),
+  depositReminder3SentAt: timestamp("deposit_reminder3_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

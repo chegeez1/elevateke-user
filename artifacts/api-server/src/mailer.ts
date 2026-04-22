@@ -288,7 +288,7 @@ export async function sendWithdrawalRejectedEmail(
 
 export async function sendDepositReminderEmail(
   to: string,
-  reminderNumber: 1 | 2,
+  reminderNumber: 1 | 2 | 3,
 ): Promise<void> {
   if (reminderNumber === 1) {
     const subject = "Your ElevateKe account is ready — start earning today";
@@ -315,7 +315,7 @@ export async function sendDepositReminderEmail(
     );
     const text = `Hi,\n\nYou joined ElevateKe but haven't made your first deposit yet. Start earning daily returns with just KSH 500 via M-Pesa.\n\nDeposit now: ${SITE_URL}/deposit\n\n— The ElevateKe Team`;
     await send({ to, subject, html, text });
-  } else {
+  } else if (reminderNumber === 2) {
     const subject = "Don't miss out — your ElevateKe earnings clock is ticking";
     const html = baseTemplate(
       heroSection("Every Day Counts", "Others are earning — you can too") +
@@ -345,6 +345,42 @@ export async function sendDepositReminderEmail(
       "3 days in and you're still not earning. One M-Pesa deposit changes that.",
     );
     const text = `Hi,\n\nIt's been 3 days since you joined ElevateKe and your account hasn't been activated yet. Start now and earn daily returns.\n\nDeposit now: ${SITE_URL}/deposit\n\n— The ElevateKe Team`;
+    await send({ to, subject, html, text });
+  } else {
+    const subject = "Last chance — your ElevateKe bonus is about to expire";
+    const html = baseTemplate(
+      heroSection("Last Chance to Start Earning", "A special welcome bonus — just for you", "#b45309") +
+        bodySection(`
+          <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.7;">Hi there,</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.7;">
+            It's been a week since you joined ElevateKe and your account is still inactive.
+            We don't want to keep filling your inbox — so consider this our final nudge.
+          </p>
+          <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+            <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#92400e;">🎁 Welcome Bonus: Extra 5% on your first deposit</p>
+            <p style="margin:0;font-size:14px;color:#78350f;">Use the deposit page — your account is pre-qualified. Offer valid for <strong>48 hours</strong> from this email.</p>
+          </div>
+          <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.7;">
+            Thousands of Kenyans are already growing their money on ElevateKe every single day. Here's what you unlock the moment you fund your account:
+          </p>
+          ${bulletList([
+            "<strong>Daily earnings</strong> credited automatically — no action needed",
+            "<strong>VIP rewards</strong> that increase your earning rate over time",
+            "<strong>Referral income</strong> from everyone you invite",
+            "<strong>M-Pesa withdrawals</strong> whenever you need your money",
+          ])}
+          <p style="margin:16px 0;font-size:15px;color:#374151;line-height:1.7;">
+            If ElevateKe isn't for you, no worries — but if you've been thinking about it, now is the time.
+          </p>
+          ${ctaButton("Claim My Bonus & Start Earning →", `${SITE_URL}/deposit`)}
+          ${divider()}
+          <p style="margin:0;font-size:12px;color:#6b7280;text-align:center;line-height:1.6;">
+            This is our final automated reminder. We respect your inbox.
+          </p>
+        `),
+      "It's been 7 days. A welcome bonus is waiting — this is our final message.",
+    );
+    const text = `Hi,\n\nIt's been 7 days since you joined ElevateKe. We're offering a one-time welcome bonus — extra 5% on your first deposit (valid 48 hours).\n\nClaim it now: ${SITE_URL}/deposit\n\nThis is our final reminder. No more automated emails after this.\n\n— The ElevateKe Team`;
     await send({ to, subject, html, text });
   }
 }
