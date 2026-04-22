@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { initTradeSettings } from "./routes/trade";
 import { expireStalePendingDeposits } from "./routes/deposits";
+import { sendDepositReminders } from "./jobs/depositReminder";
 
 const rawPort = process.env["PORT"];
 
@@ -27,6 +28,15 @@ const runDepositCleanup = () => {
 };
 runDepositCleanup(); // run once on startup to clear any pre-existing stale rows
 setInterval(runDepositCleanup, CLEANUP_INTERVAL_MS);
+
+const REMINDER_INTERVAL_MS = 60 * 60 * 1000; // every 1 hour
+const runDepositReminders = () => {
+  sendDepositReminders().catch((e) =>
+    logger.warn({ err: e }, "Deposit reminder job failed"),
+  );
+};
+runDepositReminders(); // run once on startup to catch any users already past 24h
+setInterval(runDepositReminders, REMINDER_INTERVAL_MS);
 
 app.listen(port, (err) => {
   if (err) {

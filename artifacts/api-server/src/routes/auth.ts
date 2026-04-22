@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcrypt";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, inboxMessagesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { RegisterBody, LoginBody, AdminLoginBody } from "@workspace/api-zod";
 import { signToken, authenticate } from "../middlewares/auth";
@@ -75,6 +75,28 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       await db.insert(referralsTable).values({ referrerId: referrer2.referredBy, referredId: user.id, level: 2, bonusAmount: "0" });
     }
   }
+
+  db.insert(inboxMessagesTable).values({
+    userId: user.id,
+    title: "Welcome to ElevateKe!",
+    content: `Hi ${name},
+
+Welcome to ElevateKe — your Kenyan platform for daily investment earnings!
+
+Here's how to get started in 3 simple steps:
+
+1. Make your first deposit via M-Pesa STK Push (as little as KSH 500)
+2. Choose an investment plan and start earning daily returns
+3. Claim your earnings every day — they accumulate automatically
+
+The more you invest, the higher your VIP tier and daily earning rate.
+
+We're excited to have you on board. Head to the Deposit page to fund your account and start your earning journey today!
+
+If you have any questions, our team is here to help.
+
+— The ElevateKe Team`,
+  }).catch(() => {});
 
   const token = signToken({ userId: user.id, isAdmin: user.isAdmin });
   res.status(201).json({ user: formatUser(user), token });

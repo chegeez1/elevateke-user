@@ -20,6 +20,7 @@ export const usersTable = pgTable("users", {
   isAdmin: boolean("is_admin").notNull().default(false),
   isSuspended: boolean("is_suspended").notNull().default(false),
   loginBonusClaimedAt: timestamp("login_bonus_claimed_at", { withTimezone: true }),
+  depositReminderSentAt: timestamp("deposit_reminder_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
