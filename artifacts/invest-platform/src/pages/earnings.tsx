@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Layout } from "@/components/layout";
 import {
   useGetEarnings, useClaimDailyEarnings, useReinvestEarnings,
@@ -18,16 +18,26 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
-function useMidnightCountdown(nextEarningAt: string) {
+function useMidnightCountdown(nextEarningAt: string, onExpire?: () => void) {
   const [label, setLabel] = useState("");
   const [pct, setPct] = useState(0);
+  const firedRef = useRef(false);
 
   useEffect(() => {
+    firedRef.current = false; // reset when target changes
     const update = () => {
       const target = new Date(nextEarningAt).getTime();
       const now = Date.now();
       const ms = target - now;
-      if (ms <= 0) { setLabel("Ready now!"); setPct(100); return; }
+      if (ms <= 0) {
+        setLabel("Ready now!");
+        setPct(100);
+        if (!firedRef.current) {
+          firedRef.current = true;
+          onExpire?.();
+        }
+        return;
+      }
       const h = Math.floor(ms / 3600000);
       const m = Math.floor((ms % 3600000) / 60000);
       const s = Math.floor((ms % 60000) / 1000);
@@ -43,8 +53,8 @@ function useMidnightCountdown(nextEarningAt: string) {
   return { label, pct };
 }
 
-function CountdownCard({ nextEarningAt, dailyRate }: { nextEarningAt: string; dailyRate: number }) {
-  const { label, pct } = useMidnightCountdown(nextEarningAt);
+function CountdownCard({ nextEarningAt, dailyRate, onExpire }: { nextEarningAt: string; dailyRate: number; onExpire?: () => void }) {
+  const { label, pct } = useMidnightCountdown(nextEarningAt, onExpire);
 
   return (
     <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50">
@@ -296,7 +306,11 @@ export default function Earnings() {
               </CardContent>
             </Card>
           ) : nextEarningAt ? (
-            <CountdownCard nextEarningAt={nextEarningAt} dailyRate={dailyRate} />
+            <CountdownCard
+              nextEarningAt={nextEarningAt}
+              dailyRate={dailyRate}
+              onExpire={() => queryClient.invalidateQueries({ queryKey: ["/api/dashboard/summary"] })}
+            />
           ) : null}
 
           {/* Reinvest Card */}
