@@ -171,36 +171,32 @@ export async function sendEmailVerificationEmail(
     name: string,
     otp: string,
   ): Promise<void> {
-    const subject = 'Your ElevateKe verification code';
-    const html =
-      pageWrapper(
-        subject,
-        heroSection('Verify Your Email', 'Enter the code below to activate your account') +
-        `<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td style="padding:24px 40px">
-            <p style="margin:0 0 24px;color:#444;font-size:15px;line-height:1.6">
-              Hi ${escapeHtml(name)},<br><br>
-              Use this 6-digit code to verify your email address. It expires in <strong>15 minutes</strong>.
-            </p>
-            <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:24px;text-align:center;margin:0 0 24px">
-              <p style="margin:0 0 8px;color:#15803d;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase">Your verification code</p>
-              <p style="margin:0;font-size:48px;font-weight:800;letter-spacing:12px;color:#15803d;font-family:monospace">${otp}</p>
-            </div>
-            <p style="margin:0;color:#888;font-size:13px;line-height:1.5">
-              If you didn't create an ElevateKe account, you can safely ignore this email.
-            </p>
-        </td></tr></table>`
-      );
-    const text = `Hi ${name},\n\nYour ElevateKe email verification code is: ${otp}\n\nThis code expires in 15 minutes.\n\nIf you didn't sign up, ignore this email.`;
-
-    await resend.emails.send({
-      from: FROM,
-      to,
-      subject,
-      html,
-      text,
-    });
+    const subject = "Your ElevateKe verification code";
+    const html = baseTemplate(
+      heroSection("Verify Your Email", "Enter the code below to activate your account") +
+        bodySection(`
+          <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.7;">Hi <strong>${name}</strong>,</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.7;">
+            Use this 6-digit code to verify your email address. It expires in <strong>15 minutes</strong>.
+          </p>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom:24px;">
+            <tr>
+              <td style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:24px;text-align:center;">
+                <p style="margin:0 0 8px;color:#15803d;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Your verification code</p>
+                <p style="margin:0;font-size:48px;font-weight:800;letter-spacing:12px;color:#15803d;font-family:monospace;">${otp}</p>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;line-height:1.6;">
+            If you didn't create an ElevateKe account, you can safely ignore this email.
+          </p>
+        `),
+      `Your ElevateKe verification code is ${otp} — expires in 15 minutes.`,
+    );
+    const text = `Hi ${name},\n\nYour ElevateKe email verification code is: ${otp}\n\nThis code expires in 15 minutes.\n\nIf you did not sign up, ignore this email.\n\n— The ElevateKe Team`;
+    await send({ to, subject, html, text });
   }
-
+  
 export async function sendPasswordResetEmail(
   to: string,
   name: string,
