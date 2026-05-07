@@ -147,17 +147,22 @@ paths:
     post:
       operationId: verifyEmail
       tags: [auth]
-      summary: Verify email address using token from email link
+      summary: Verify email address using OTP code
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [token]
+              required: [email, otp]
               properties:
-                token:
+                email:
                   type: string
+                  format: email
+                otp:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
       responses:
         "200":
           description: Email verified
@@ -166,7 +171,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthResponse"
         "400":
-          description: Invalid or expired token
+          description: Invalid or expired OTP
           content:
             application/json:
               schema:
