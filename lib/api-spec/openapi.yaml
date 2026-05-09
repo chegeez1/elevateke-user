@@ -1551,7 +1551,7 @@ components:
           type: string
         reference:
           type: string
-      required: [deposit, paystackAuthUrl, reference]
+      required: [deposit, reference]
 
     VerifyDepositBody:
       type: object
